@@ -1,0 +1,22 @@
+# macOS system file
+.DS_Store
+
+# Python virtual environment directory
+venv/*
+
+# Airflow data directory
+airflow-data/*
+
+# Configuration files directory
+config/*
+
+# MinIO data directory
+minio_data/*
+
+# Jupyter notebooks directory
+notebooks/*
+
+myapp.log
+
+irly-adel.ipynb
+**/__pycache__/**
