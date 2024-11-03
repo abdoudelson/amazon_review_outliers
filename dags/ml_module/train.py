@@ -26,9 +26,9 @@ def read_csv_from_minio(bucket_name, file_key):
     # Initialize Boto3 client for MinIO
     s3 = boto3.client(
         's3',
-        endpoint_url=os.getenv("MLFLOW_S3_ENDPOINT_URL", "http://minio:9000"),
-        aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID", "minio"),
-        aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY", "minio123"),
+        endpoint_url=os.getenv("MLFLOW_S3_ENDPOINT_URL", ""),
+        aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID", ""),
+        aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY", ""),
     )
 
     try:
@@ -50,10 +50,18 @@ def train_and_log_models():
     mlflow.set_tracking_uri("http://mlflow:5050")
 
     # Configure MLflow to use MinIO for artifact storage
-    os.environ["MLFLOW_S3_ENDPOINT_URL"] = "http://minio:9000"
-    os.environ["AWS_ACCESS_KEY_ID"] = os.getenv("AWS_ACCESS_KEY_ID", "minio")
-    os.environ["AWS_SECRET_ACCESS_KEY"] = os.getenv("AWS_SECRET_ACCESS_KEY", "minio123")
-    mlflow.set_experiment("Outlier Detection Models")
+    os.environ["MLFLOW_S3_ENDPOINT_URL"] = os.getenv("http://minio:9000","")
+    os.environ["AWS_ACCESS_KEY_ID"] = os.getenv("AWS_ACCESS_KEY_ID", "")
+    os.environ["AWS_SECRET_ACCESS_KEY"] = os.getenv("AWS_SECRET_ACCESS_KEY", "")
+
+    # Set the correct bucket and artifact storage path for the experiment
+    artifact_location = os.getenv('ARTIFACT_BUCKET',"")
+    experiment_name = "Outlier Detection Models"
+    
+    # Create or retrieve the experiment with the specified artifact location
+    if mlflow.get_experiment_by_name(experiment_name) is None:
+        mlflow.create_experiment(name=experiment_name, artifact_location=artifact_location)
+    mlflow.set_experiment(experiment_name)
 
     # Define MinIO bucket and file paths
     bucket_name = "databucket"
@@ -76,7 +84,7 @@ def train_and_log_models():
             model.fit(X_train)
             mlflow.sklearn.log_model(model, f"{model_name}_model")
             mlflow.log_params({"contamination": 0.1, "model": model_name})
-            logger.info(f"{model_name} trained and logged to MLflow at mlflow:5050")
+            logger.info(f"{model_name} trained and logged to MLflow at mlflow:5050 with artifacts in {artifact_location}")
 
 # Run the training and logging function
 if __name__ == "__main__":
