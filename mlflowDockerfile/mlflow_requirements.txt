@@ -5,5 +5,3 @@ datasets
 boto3
 sentence-transformers
 colorlog
-tensorflow
-tf-keras

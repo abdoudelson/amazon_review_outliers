@@ -4,7 +4,9 @@ from app.models import load_latest_model, predict_outliers
 import logging
 
 # Configure logging
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+)
 logger = logging.getLogger(__name__)
 
 app = FastAPI()
@@ -17,11 +19,14 @@ except Exception as e:
     logger.error("Failed to load the model at startup: %s", e)
     model = None  # Set model to None so we can handle it later in predict endpoint
 
+
 class ReviewData(BaseModel):
     review_text: str
 
+
 class PredictionResponse(BaseModel):
     is_outlier: bool
+
 
 @app.post("/predict", response_model=PredictionResponse)
 async def predict(data: ReviewData):

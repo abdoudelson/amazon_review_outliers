@@ -68,7 +68,7 @@ services:
 
 
   mlflow:
-    image: ghcr.io/mlflow/mlflow:v2.17.2
+    build: mlflowDockerfile
     container_name: mlflow
 
     environment:
@@ -84,7 +84,7 @@ services:
       - "host.docker.internal:host-gateway"  
     restart: always
     env_file: .env
-    command: mlflow server --default-artifact-root s3://ml_artifact_bucket/artifacts/ --host 0.0.0.0 --port 5050
+    command: mlflow server --default-artifact-root s3://mlartifactbucket/artifacts/ --host 0.0.0.0 --port 5050
     depends_on:
       minio:
         condition: service_healthy

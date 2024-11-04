@@ -1,10 +1,12 @@
 import mlflow
 import numpy as np
 
+
 def load_latest_model():
     # Load the latest model from MLflow
     model = mlflow.sklearn.load_model("models:/IsolationForest_model/latest")
     return model
+
 
 def predict_outliers(model, review_text):
     # Feature extraction for the model (example: text length)
