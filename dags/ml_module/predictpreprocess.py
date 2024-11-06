@@ -1,18 +1,15 @@
+import mlflow
 import pandas as pd
-from sklearn.preprocessing import StandardScaler, LabelEncoder
 from sentence_transformers import SentenceTransformer
 import logging
 from colorlog import ColoredFormatter
-
 
 class PredictPreprocessor:
     def __init__(self):
         self.logger = self.setup_logger()
         self.model = SentenceTransformer("all-MiniLM-L6-v2")
-        self.scaler = StandardScaler()  # Initialiser sans fit pour les prédictions
-        self.label_encoder = LabelEncoder()  # Initialiser sans fit pour les prédictions
-        self.numerical_features = ["rating", "helpful_vote"]
-        self.categorical_features = ["verified_purchase"]
+        self.scaler = self.load_artifact("scaler")
+        self.label_encoder = self.load_artifact("label_encoder")
 
     def setup_logger(self):
         formatter = ColoredFormatter(
@@ -33,79 +30,69 @@ class PredictPreprocessor:
         logger.setLevel(logging.INFO)
         return logger
 
-    def load_transformers(self, scaler_path, label_encoder_path):
+    def load_artifact(self, artifact_name: str):
+        """
+        Load a model artifact from MLflow.
+        """
         try:
-            self.logger.info("Loading transformers for prediction...")
-            self.scaler = pd.read_pickle(scaler_path)
-            self.label_encoder = pd.read_pickle(label_encoder_path)
-            self.logger.info("Transformers loaded successfully.")
+            self.logger.info(f"Loading {artifact_name} from MLflow...")
+            model_uri = f"models:/{artifact_name}/Production"
+            artifact = mlflow.pyfunc.load_model(model_uri)
+            self.logger.info(f"{artifact_name} loaded successfully.")
+            return artifact
         except Exception as e:
-            self.logger.error("Error loading transformers: %s", e)
+            self.logger.error(f"Error loading {artifact_name} from MLflow: {e}")
             raise
 
-    def preprocess(self, data):
+    def preprocess_input(self, input_data: dict) -> pd.DataFrame:
         """
-        Prétraite les données de prédiction en appliquant les transformations
-        utilisées durant l'entraînement.
-
-        Paramètres:
-        - data (dict): Un dictionnaire avec les clés "rating", "helpful_vote", "verified_purchase", "text".
-
-        Retourne:
-        - pd.DataFrame: Un DataFrame avec les données transformées.
+        Preprocess incoming data for predictions.
+        
+        Parameters:
+        - input_data (dict): Input data with keys 'text', 'rating', 'verified_purchase'.
+        
+        Returns:
+        - pd.DataFrame: A DataFrame with preprocessed features ready for model prediction.
         """
         try:
-            self.logger.info("Preprocessing data for prediction...")
+            self.logger.info("Preprocessing input data for prediction...")
+            
+            # Create a DataFrame from the input data
+            input_df = pd.DataFrame([input_data])
 
-            # Crée un DataFrame à partir des données d'entrée
-            data_df = pd.DataFrame([data])
+            # Process numerical features
+            self.logger.info("Scaling numerical features...")
+            input_df["rating"] = self.scaler.transform(input_df[["rating"]])
 
-            # Appliquer le scaling pour les caractéristiques numériques
-            self.logger.info("Applying scaler to numerical features...")
-            data_df[self.numerical_features] = self.scaler.transform(
-                data_df[self.numerical_features]
-            )
-
-            # Encoder les caractéristiques catégorielles
+            # Encode categorical features
             self.logger.info("Encoding categorical features...")
-            for col in self.categorical_features:
-                data_df[col] = self.label_encoder.transform(data_df[col].astype(str))
+            input_df["verified_purchase"] = self.label_encoder.transform(input_df["verified_purchase"].astype(str))
 
-            # Générer les embeddings de texte
+            # Generate text embeddings
             self.logger.info("Generating text embeddings...")
-            text_embedding = self.model.encode(
-                data_df["text"].tolist(), show_progress_bar=False
-            )
+            text_embedding = self.model.encode(input_df["text"].tolist(), show_progress_bar=False)
             embedded_df = pd.DataFrame(text_embedding)
 
-            # Combiner les embeddings de texte avec les autres caractéristiques
-            other_features = data_df[
-                self.numerical_features + self.categorical_features
-            ].reset_index(drop=True)
-            processed_data = pd.concat([embedded_df, other_features], axis=1)
+            # Combine embeddings with scaled and encoded features
+            processed_df = pd.concat([embedded_df, input_df[["rating", "verified_purchase"]].reset_index(drop=True)], axis=1)
 
-            self.logger.info("Data preprocessed successfully for prediction.")
-            return processed_data
+            self.logger.info("Input data preprocessed successfully.")
+            return processed_df
         except Exception as e:
-            self.logger.error("Error during prediction preprocessing: %s", e)
+            self.logger.error(f"Error during input preprocessing: {e}")
             raise
 
-
+# Example usage
 if __name__ == "__main__":
-    # Initialise la classe
     preprocessor = PredictPreprocessor()
 
-    # Charger les transformations entraînées
-    preprocessor.load_transformers("scaler.pkl", "label_encoder.pkl")
-
-    # Exemple de données de prédiction
-    sample_data = {
-        "rating": 4.0,
-        "helpful_vote": 20,
-        "verified_purchase": "Yes",
+    # Sample input data for prediction
+    sample_input = {
         "text": "Great product, really enjoyed it!",
+        "rating": 5,
+        "verified_purchase": True
     }
 
-    # Prétraitement des données de prédiction
-    processed_data = preprocessor.preprocess(sample_data)
+    # Preprocess the sample input
+    processed_data = preprocessor.preprocess_input(sample_input)
     print(processed_data)
