@@ -4,6 +4,7 @@ from sentence_transformers import SentenceTransformer
 import logging
 from colorlog import ColoredFormatter
 
+
 class PredictPreprocessor:
     def __init__(self):
         self.logger = self.setup_logger()
@@ -47,16 +48,16 @@ class PredictPreprocessor:
     def preprocess_input(self, input_data: dict) -> pd.DataFrame:
         """
         Preprocess incoming data for predictions.
-        
+
         Parameters:
         - input_data (dict): Input data with keys 'text', 'rating', 'verified_purchase'.
-        
+
         Returns:
         - pd.DataFrame: A DataFrame with preprocessed features ready for model prediction.
         """
         try:
             self.logger.info("Preprocessing input data for prediction...")
-            
+
             # Create a DataFrame from the input data
             input_df = pd.DataFrame([input_data])
 
@@ -66,21 +67,32 @@ class PredictPreprocessor:
 
             # Encode categorical features
             self.logger.info("Encoding categorical features...")
-            input_df["verified_purchase"] = self.label_encoder.transform(input_df["verified_purchase"].astype(str))
+            input_df["verified_purchase"] = self.label_encoder.transform(
+                input_df["verified_purchase"].astype(str)
+            )
 
             # Generate text embeddings
             self.logger.info("Generating text embeddings...")
-            text_embedding = self.model.encode(input_df["text"].tolist(), show_progress_bar=False)
+            text_embedding = self.model.encode(
+                input_df["text"].tolist(), show_progress_bar=False
+            )
             embedded_df = pd.DataFrame(text_embedding)
 
             # Combine embeddings with scaled and encoded features
-            processed_df = pd.concat([embedded_df, input_df[["rating", "verified_purchase"]].reset_index(drop=True)], axis=1)
+            processed_df = pd.concat(
+                [
+                    embedded_df,
+                    input_df[["rating", "verified_purchase"]].reset_index(drop=True),
+                ],
+                axis=1,
+            )
 
             self.logger.info("Input data preprocessed successfully.")
             return processed_df
         except Exception as e:
             self.logger.error(f"Error during input preprocessing: {e}")
             raise
+
 
 # Example usage
 if __name__ == "__main__":
@@ -90,7 +102,7 @@ if __name__ == "__main__":
     sample_input = {
         "text": "Great product, really enjoyed it!",
         "rating": 5,
-        "verified_purchase": True
+        "verified_purchase": True,
     }
 
     # Preprocess the sample input

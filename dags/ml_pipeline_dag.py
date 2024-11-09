@@ -26,6 +26,7 @@ with DAG(
     schedule_interval=None,
     start_date=days_ago(1),
     dagrun_timeout=timedelta(minutes=120),
+    tags=["ml", "Review_processing", "Training"],
 ) as dag:
 
     # Task to create the MinIO bucket for MLflow artifacts
