@@ -15,7 +15,7 @@ XCOM_BUCKET = "localxcom"
 default_args = {
     "owner": "airflow",
     "depends_on_past": False,
-    "retries": 1,
+    "retries": 2,
 }
 
 # Define the DAG

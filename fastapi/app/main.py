@@ -10,11 +10,16 @@ import logging
 import base64
 from datetime import timezone
 from requests.auth import HTTPBasicAuth
-
+import boto3
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
+s3_client = boto3.client(
+    "s3",
+    endpoint_url="http://minio:9000",  # MinIO endpoint
+    aws_access_key_id=os.getenv("MINIO_ROOT_USER", "minio"),
+    aws_secret_access_key=os.getenv("MINIO_ROOT_PASSWORD", "minio123"),
+)
 # Initialize FastAPI app
 app = FastAPI(title="Review Analysis API")
 
@@ -30,33 +35,27 @@ class ReviewInput(BaseModel):
     verified_purchase: bool
 
 
-def get_airflow_headers():
-    """Generate headers for Airflow API requests with basic auth"""
-    logger.info(f"{AIRFLOW_USERNAME}:{AIRFLOW_PASSWORD}")
-    logger.info("Creds")
-    auth = base64.b64encode(f"{AIRFLOW_USERNAME}:{AIRFLOW_PASSWORD}".encode()).decode(
-        "utf-8"
-    )
-    return {"Content-Type": "application/json", "Authorization": f"Basic {auth}"}
-
-
 def trigger_airflow_dag(review_data: Dict[str, Any], task_id: str):
     """Trigger Airflow DAG and return the run_id for monitoring"""
-    dag_id = "review_processing_pipeline"
-    endpoint = f"{AIRFLOW_API_URL}/dags/{dag_id}/dagRuns"
-    logical_date = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+    # Define the Airflow API endpoint
+    url = "http://airflow-webserver:8080/api/v1/dags/review_processing_pipeline/dagRuns"
 
-    payload = {
-        "conf": {"review_data": review_data, "task_id": task_id},
-        "logical_date": logical_date,
-    }
+    # Define the JSON payload
+    payload = {"conf": {"review_data": f"{review_data}", "task_id": "task_20241109"}}
 
+    # Set the Content-Type header
+    headers = {"Content-Type": "application/json"}
+
+    # Send the POST request with basic authentication
     response = requests.post(
-        endpoint,
+        url,
         json=payload,
-        headers={"Content-Type": "application/json"},
-        auth=HTTPBasicAuth(AIRFLOW_USERNAME, AIRFLOW_PASSWORD),
+        headers=headers,
+        auth=HTTPBasicAuth(
+            "airflow", "airflow"
+        ),  # Replace with your actual username and password
     )
+    logger.info(response)
     if response.status_code == 200:
         return response.json()["dag_run_id"]
     else:
@@ -74,9 +73,14 @@ def wait_for_dag_completion(dag_run_id: str, dag_id: str, timeout: int = 300):
     while time.time() - start_time < timeout:
         response = requests.get(
             endpoint,
-            headers={"Content-Type": "application/json"},
-            auth=HTTPBasicAuth(AIRFLOW_USERNAME, AIRFLOW_PASSWORD),
+            headers={
+                "Content-Type": "application/json",
+            },
+            auth=HTTPBasicAuth(
+                "airflow", "airflow"
+            ),  # Replace with your actual username and password
         )
+        logger.info(f"Dag state is {response.json()["state"]}")
         if response.status_code == 200:
             status = response.json()["state"]
             if status == "success":
@@ -99,11 +103,7 @@ def wait_for_dag_completion(dag_run_id: str, dag_id: str, timeout: int = 300):
 async def health_check():
     """Endpoint to check Airflow API connectivity"""
     endpoint = f"{AIRFLOW_API_URL}/health"
-    response = requests.get(
-        endpoint,
-        headers={"Content-Type": "application/json"},
-        auth=HTTPBasicAuth(AIRFLOW_USERNAME, AIRFLOW_PASSWORD),
-    )
+    response = requests.get(endpoint, headers=get_airflow_headers())
     if response.status_code == 200:
         return {"status": "Airflow API is reachable"}
     else:
@@ -118,7 +118,6 @@ async def predict(review: ReviewInput, background_tasks: BackgroundTasks):
     """Endpoint to trigger Airflow DAG for prediction and wait for response"""
     task_id = f"task_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
     review_data = review.dict()
-    logger.info(f"Review recieved {review}")
     # Trigger Airflow DAG
     try:
         dag_run_id = trigger_airflow_dag(review_data, task_id)

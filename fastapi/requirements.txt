@@ -1,0 +1,10 @@
+# my_ml_project/requirements.txt
+
+fastapi
+uvicorn
+pydantic
+mlflow
+scikit-learn
+pandas
+datasets
+boto3

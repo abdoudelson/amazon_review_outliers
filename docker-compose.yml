@@ -17,6 +17,7 @@ x-airflow-common:
     - ./airflow-data/plugins:/opt/airflow/plugins
     - ./airflow-data/airflow.cfg:/opt/airlfow/airflow.cfg
     - ./ml_module:/opt/airflow/ml_module
+    - ./airflow-data/airflow.cfg:/opt/airflow/airflow.cfg
 
   depends_on:
     - postgres
@@ -41,7 +42,7 @@ services:
     entrypoint: /bin/bash
     command:
       - -c
-      - airflow users list || ( airflow db init &&
+      -  ( airflow db init &&
         airflow users create
           --role Admin
           --username airflow
@@ -116,7 +117,7 @@ services:
     env_file: .env
 
   fastapi_app:
-    build: .
+    build: fastapi
     container_name: fastapi_app
     ports:
       - "8000:8000"

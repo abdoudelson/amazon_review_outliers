@@ -71,10 +71,21 @@ def predict_review_task(task_id: str) -> Dict[str, Any]:
         latest_model = mlflow.pyfunc.load_model(
             model_uri=f"models:/{prediction_model}/Production"
         )
-
+        result_key=f"predictions/output/prediction.json"
         # Make prediction
         prediction = latest_model.predict(pd.DataFrame([processed_data]))[0]
-
+        s3_client.put_object(
+            Bucket="databucket",
+            Key=result_key,
+            Body=json.dumps(
+                {
+                    "task_id": task_id,
+                    "prediction": prediction,
+                    "model_version": latest_model.metadata.version,
+                }
+            ),
+            ContentType="application/json",
+        )
         return {
             "task_id": task_id,
             "prediction": prediction,
