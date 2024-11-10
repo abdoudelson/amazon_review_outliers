@@ -5,7 +5,7 @@
 venv/*
 
 # Airflow data directory
-airflow-data/*
+airflow-data/logs/*
 
 # Configuration files directory
 config/*
