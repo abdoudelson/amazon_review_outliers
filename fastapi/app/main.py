@@ -20,6 +20,7 @@ s3_client = boto3.client(
     aws_access_key_id=os.getenv("MINIO_ROOT_USER", "minio"),
     aws_secret_access_key=os.getenv("MINIO_ROOT_PASSWORD", "minio123"),
 )
+result_key= f"predictions/output/prediction.json"
 # Initialize FastAPI app
 app = FastAPI(title="Review Analysis API")
 
@@ -80,10 +81,13 @@ def wait_for_dag_completion(dag_run_id: str, dag_id: str, timeout: int = 300):
                 "airflow", "airflow"
             ),  # Replace with your actual username and password
         )
-        logger.info(f"Dag state is {response.json()["state"]}")
+        logger.info(f"Dag state is {response.json()}")
         if response.status_code == 200:
-            status = response.json()["state"]
+            status = response.json().get('state')
             if status == "success":
+                response = s3_client.get_object(Bucket="databucket", Key=result_key)
+                processed_data = json.loads(response["Body"].read().decode("utf-8"))
+
                 return response.json()["conf"]["prediction"]
             elif status == "failed":
                 logger.error("DAG run failed.")
