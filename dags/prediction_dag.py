@@ -11,11 +11,20 @@ import os
 import boto3
 import mlflow
 import logging
+from io import StringIO
+import numpy as np
+os.environ["MLFLOW_S3_ENDPOINT_URL"] = os.getenv(
+        "MLFLOW_TRACKING_URI", "http://minio:9000"
+    )
+os.environ["AWS_ACCESS_KEY_ID"] = os.getenv("AWS_ACCESS_KEY_ID", "minio")
+os.environ["AWS_SECRET_ACCESS_KEY"] = os.getenv("AWS_SECRET_ACCESS_KEY", "minio123")
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-prediction_model = ""
+prediction_model = os.getenv(
+        "PREDICTION_MODEL", "IsolationForest"
+    )
 # Boto3 client configuration for MinIO
 s3_client = boto3.client(
     "s3",
@@ -43,12 +52,14 @@ def preprocess_review_task(review_data: Dict[str, Any], task_id: str) -> str:
         processed_input = preprocessor.preprocess_input(review_data)
 
         # Save processed data to MinIO (S3-compatible) for the prediction task
-        processed_key = f"processed_reviews/{task_id}.json"
+        csv_buffer = StringIO()
+        processed_input.to_csv(csv_buffer, index=False)
+        processed_key = f"processed_reviews/{task_id}.csv"
         s3_client.put_object(
             Bucket="databucket",
             Key=processed_key,
-            Body=json.dumps(processed_input),
-            ContentType="application/json",
+            Body=csv_buffer.getvalue(),
+            ContentType="text/csv"
         )
 
         logger.info(f"Preprocessed data saved to MinIO at {processed_key}")
@@ -63,17 +74,21 @@ def predict_review_task(task_id: str) -> Dict[str, Any]:
     """Load preprocessed review data and make a prediction"""
     try:
         # Load the preprocessed review data from MinIO (S3-compatible)
-        processed_key = f"processed_reviews/{task_id}.json"
+        processed_key = f"processed_reviews/{task_id}.csv"
         response = s3_client.get_object(Bucket="databucket", Key=processed_key)
-        processed_data = json.loads(response["Body"].read().decode("utf-8"))
-
+        csv_content = response["Body"].read().decode("utf-8")
+        
+        # Load the CSV content into a pandas DataFrame
+        csv_buffer = StringIO(csv_content)
+        processed_data = pd.read_csv(csv_buffer)
         # Load the latest model from MLflow
-        latest_model = mlflow.pyfunc.load_model(
-            model_uri=f"models:/{prediction_model}/Production"
+        latest_model = mlflow.sklearn.load_model(
+            model_uri = f"models:/IsolationForest/latest"
         )
         result_key=f"predictions/output/prediction.json"
         # Make prediction
-        prediction = latest_model.predict(pd.DataFrame([processed_data]))[0]
+        logger.info(processed_data)
+        prediction = latest_model.predict(processed_data.values)
         s3_client.put_object(
             Bucket="databucket",
             Key=result_key,

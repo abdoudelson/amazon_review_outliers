@@ -17,6 +17,15 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+os.environ["MLFLOW_S3_ENDPOINT_URL"] = os.getenv(
+    "MLFLOW_TRACKING_URI", "http://minio:9000"
+)
+os.environ["AWS_ACCESS_KEY_ID"] = os.getenv("AWS_ACCESS_KEY_ID", "minio")
+os.environ["AWS_SECRET_ACCESS_KEY"] = os.getenv("AWS_SECRET_ACCESS_KEY", "minio123")
+mlflow.set_tracking_uri("http://mlflow:5050")
+
+ARTIFACT_LOCATION = os.getenv("ARTIFACT_BUCKET", "")
+
 
 def read_csv_from_minio(bucket_name, file_key):
     """
@@ -67,23 +76,16 @@ def train_and_log_models():
     Train models on data from MinIO, log them to MLflow, and register them in the model registry.
     """
     # Set MLflow tracking URI to the remote server
-    mlflow.set_tracking_uri("http://mlflow:5050")
 
     # Configure MLflow to use MinIO for artifact storage
-    os.environ["MLFLOW_S3_ENDPOINT_URL"] = os.getenv(
-        "MLFLOW_TRACKING_URI", "http://minio:9000"
-    )
-    os.environ["AWS_ACCESS_KEY_ID"] = os.getenv("AWS_ACCESS_KEY_ID", "minio")
-    os.environ["AWS_SECRET_ACCESS_KEY"] = os.getenv("AWS_SECRET_ACCESS_KEY", "minio123")
 
     # Set the correct bucket and artifact storage path for the experiment
-    artifact_location = os.getenv("ARTIFACT_BUCKET", "")
     experiment_name = "Outlier Detection Models"
 
     # Create or retrieve the experiment with the specified artifact location
     if mlflow.get_experiment_by_name(experiment_name) is None:
         mlflow.create_experiment(
-            name=experiment_name, artifact_location=artifact_location
+            name=experiment_name, artifact_location=ARTIFACT_LOCATION
         )
     mlflow.set_experiment(experiment_name)
 
@@ -104,30 +106,26 @@ def train_and_log_models():
     }
 
     # Prepare an input example for model registration
-    input_example = X_train.sample(5)  # Example input of 5 samples
+    input_example = X_train.sample(1)  # Example input of 5 samples
     signature = infer_signature(X_train, input_example)
 
     # Train and log each model with MLflow
     for model_name, model in models.items():
         with mlflow.start_run(run_name=model_name):
             logger.info(f"Training {model_name}...")
-            model.fit(X_train)
+            model.fit(X_train.values)
             mlflow.sklearn.log_model(
                 model,
-                f"{model_name}_model",
+                artifact_path=f"{model_name}_model",
+                registered_model_name=f"{model_name}",
                 signature=signature,
                 input_example=input_example,
             )
             mlflow.log_params({"contamination": 0.1, "model": model_name})
             logger.info(
-                f"{model_name} trained and logged to MLflow at mlflow:5050 with artifacts in {artifact_location}"
+                f"{model_name} trained and logged to MLflow at mlflow:5050 with artifacts in "
             )
-
-            # Register the model in MLflow model registry
-            model_uri = f"runs:/{model_name}_model"
-            mlflow.register_model(model_uri, model_name)
-            logger.info(f"{model_name} registered in MLflow model registry.")
-
+    a = """
     # Train and log Autoencoder
     logger.info("Training Autoencoder for outlier detection...")
     input_dim = X_train.shape[1]
@@ -148,21 +146,15 @@ def train_and_log_models():
 
     with mlflow.start_run(run_name="Autoencoder"):
         # Log the autoencoder model
-        mlflow.keras.log_model(
-            autoencoder,
-            "autoencoder_model",
-            signature=signature,
-            input_example=input_example,
-        )
+        mlflow.keras.log_model(autoencoder, 
+                               "autoencoder_model", 
+                               signature=False,
+                               input_example=None)
+
         mlflow.log_metric("reconstruction_error_threshold", threshold)
         logger.info(
             "Autoencoder trained and logged to MLflow with threshold for outlier detection."
-        )
-
-        # Register the autoencoder model in MLflow model registry
-        model_uri = f"runs:/autoencoder_model"
-        mlflow.register_model(model_uri, "AutoencoderModel")
-        logger.info("Autoencoder model registered in MLflow model registry.")
+        )"""
 
 
 # Run the training and logging function

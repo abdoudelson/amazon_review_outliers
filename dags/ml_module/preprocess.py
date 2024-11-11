@@ -10,8 +10,15 @@ import os
 import logging
 from colorlog import ColoredFormatter
 
+os.environ["MLFLOW_S3_ENDPOINT_URL"] = os.getenv(
+    "MLFLOW_TRACKING_URI", "http://minio:9000"
+)
+os.environ["AWS_ACCESS_KEY_ID"] = os.getenv("AWS_ACCESS_KEY_ID", "minio")
+os.environ["AWS_SECRET_ACCESS_KEY"] = os.getenv("AWS_SECRET_ACCESS_KEY", "minio123")
+
 # Silence Git warnings
 os.environ["GIT_PYTHON_REFRESH"] = "quiet"
+
 
 class DataPreprocessor:
     def __init__(self):
@@ -97,7 +104,7 @@ class DataPreprocessor:
             self.logger.info("Data merged successfully!")
 
             # Standardize numerical and encode categorical features
-            numerical_features = ["rating", "helpful_vote"]
+            numerical_features = ["rating",]
             categorical_features = ["verified_purchase"]
 
             self.logger.info("Starting feature scaling for numerical features...")
@@ -114,7 +121,7 @@ class DataPreprocessor:
                     combined_df[col].astype(str)
                 )
             self.logger.info("Categorical features encoded.")
-
+            mlflow.set_tracking_uri("http://mlflow:5050")
             # Log scaler and label encoder to MLflow
             experiment_name = "Data Preprocessing Experiment"
             if mlflow.get_experiment_by_name(experiment_name) is None:
@@ -124,28 +131,29 @@ class DataPreprocessor:
             mlflow.set_experiment(experiment_name)
 
             with mlflow.start_run(run_name="Data Preprocessing Artifacts"):
-                # Define input examples for model signature inference
+                # Define input examples for the models
                 input_example_scaler = combined_df[numerical_features].iloc[[0]].values
-                input_example_label_encoder = [1]
+                input_example_label_encoder = [1]  # Example for label encoder
 
-                # Register and log the scaler model
+                # Log the scaler model without inferring the signature and without `python_function` flavor
                 mlflow.sklearn.log_model(
                     scaler,
                     artifact_path="scaler",
                     registered_model_name="StandardScaler",
-                    input_example=input_example_scaler
+                    input_example=None,
+                    signature=False,  # Disable automatic signature inference
                 )
                 self.logger.info("Scaler model registered and logged to MLflow.")
 
-                # Register and log the label encoder model
+                # Log the label encoder model without inferring the signature and without `python_function` flavor
                 mlflow.sklearn.log_model(
                     label_encoder,
                     artifact_path="label_encoder",
                     registered_model_name="LabelEncoder",
-                    input_example=input_example_label_encoder
+                    input_example=None,
+                    signature=False,  # Disable automatic signature inference
                 )
                 self.logger.info("LabelEncoder model registered and logged to MLflow.")
-
             return combined_df, numerical_features, categorical_features
         except Exception as e:
             self.logger.error("Error during preprocessing: %s", e)
