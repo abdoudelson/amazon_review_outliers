@@ -67,6 +67,7 @@ class ReviewInput(BaseModel):
     """Review input model with validation"""
     text: str = Field(..., min_length=1, max_length=5000)
     rating: int = Field(..., ge=1, le=5)
+    helpful_vote: int = Field(..., ge=1, le=5)
     verified_purchase: bool
 
     @validator('text')

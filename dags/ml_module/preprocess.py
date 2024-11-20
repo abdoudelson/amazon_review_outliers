@@ -91,7 +91,7 @@ class DataPreprocessor:
                 split="full",
                 trust_remote_code=True,
             )
-            self.logger.info("Data loaded successfully!")
+            self.logger.info("Data loaded successfully!")            
             return pd.DataFrame(metadata), pd.DataFrame(reviews)
         except Exception as e:
             self.logger.error("Failed to load data: %s", e)
@@ -99,13 +99,16 @@ class DataPreprocessor:
 
     def preprocess_data(self, metadata, reviews):
         try:
+            # Standardize numerical and encode categorical features
+            numerical_features = ["rating","helpful_vote"]
+            categorical_features = ["verified_purchase"]
+            
             self.logger.info("Merging reviews and metadata on parent_asin...")
             combined_df = pd.merge(metadata, reviews, on="parent_asin", how="inner")
             self.logger.info("Data merged successfully!")
+            self.logger.warn(f"Data {combined_df[numerical_features].head(10)}")
 
-            # Standardize numerical and encode categorical features
-            numerical_features = ["rating",]
-            categorical_features = ["verified_purchase"]
+
 
             self.logger.info("Starting feature scaling for numerical features...")
             scaler = StandardScaler()
@@ -140,7 +143,7 @@ class DataPreprocessor:
                     scaler,
                     artifact_path="scaler",
                     registered_model_name="StandardScaler",
-                    input_example=None,
+                    input_example=input_example_scaler,
                     signature=False,  # Disable automatic signature inference
                 )
                 self.logger.info("Scaler model registered and logged to MLflow.")

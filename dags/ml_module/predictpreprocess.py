@@ -51,6 +51,7 @@ class PredictPreprocessor:
         self.input_schema = {
             'text': str,
             'rating': (int, float),
+            "helpful_vote": (int, float),
             'verified_purchase': bool
         }
 
@@ -167,15 +168,15 @@ class PredictPreprocessor:
                 input_df = pd.DataFrame({key: [value] for key, value in input_data.items()})
                 self.logger.info(input_df.head())
             except Exception as e:
-                self.logger.error(f"Failed to create DataFrame: {str(e)}")
-                raise ValueError(f"DataFrame creation failed: {str(e)}")
+                self.logger.error(f"Failed to create DataFrame: {(e)}")
+                raise ValueError(f"DataFrame creation failed: {(e)}")
 
             # Scale numerical features
             try:
-                input_df["rating"] = self.scaler.transform(input_df[["rating"]])
+                input_df["rating","helpful_vote"] = self.scaler.transform(input_df[["rating","helpful_vote"]])
             except Exception as e:
-                self.logger.error(f"Scaling failed: {str(e)}")
-                raise ValueError(f"Failed to scale rating: {str(e)}")
+                self.logger.error(f"Scaling failed: {(e)}")
+                raise ValueError(f"Failed to scale rating helpful_vote: {(e)}")
 
             # Encode categorical features
             try:
@@ -183,7 +184,7 @@ class PredictPreprocessor:
                     input_df["verified_purchase"].astype(str)
                 )
             except Exception as e:
-                self.logger.error(f"Encoding failed: {str(e)}")
+                self.logger.error(f"Encoding failed: {(e)}")
                 raise ValueError(f"Failed to encode verified_purchase: {str(e)}")
 
             # Generate embeddings
@@ -202,7 +203,7 @@ class PredictPreprocessor:
                 processed_df = pd.concat(
                     [
                         embedded_df,
-                        input_df[["rating", "verified_purchase"]].reset_index(drop=True),
+                        input_df[["rating", "helpful_vote", "verified_purchase"]].reset_index(drop=True),
                     ],
                     axis=1,
                 )
